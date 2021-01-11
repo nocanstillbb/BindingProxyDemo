@@ -2,7 +2,8 @@
 
 ```c#
             //此方法只在.net frame work中有效，  .net core中无法正常使用，如果需要在.net core中使用需要添加额外的洗发水
-
+            _vm = new BindingProxy<ClrClass>(new ClrClass());
+            
             var random = new Random((int)DateTime.Now.Ticks);
             var result = random.Next();
             //下面这样设置值不会通知到ui
