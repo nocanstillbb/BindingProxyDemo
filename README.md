@@ -1,29 +1,23 @@
 # BindingProxyDemo
 
 ```c#
-            //此方法只在.net frame work中有效，  .net core中无法正常使用，如果需要在.net core中使用需要添加额外的洗发水
-            _vm = new BindingProxy<ClrClass>(new ClrClass());
-            
-            var random = new Random((int)DateTime.Now.Ticks);
-            var result = random.Next();
             //下面这样设置值不会通知到ui
-            _vm.Instance.ClrIntProp = result;
+            _vm.Instance.ClrIntProp = 55;
+            
+            // 常规操作 通知ui
+            var setResult = _vm.TrySetMember(() => _vm.Instance.ClrIntProp,55);
 
-            ////下面这样设置值会通知到ui，但是重构名称不友好
-            //((dynamic)_vm).ClrIntProp = result+1;
+            // 隐式转换 float -> int  ,通知ui
+            setResult = _vm.TrySetMember(() => _vm.Instance.ClrIntProp , 55f);
+            // 隐式转换 double -> int ,通知ui
+            setResult = _vm.TrySetMember(() => _vm.Instance.ClrIntProp , 55d);
 
-            //下面这样设置值会通知到ui 属性名称可以重构
-            _vm.TrySetMember(nameof(_vm.Instance.ClrIntProp), result + 2);
+            //编译时报错
+            //setResult = _vm.TrySetMember(() => _vm.Instance.ClrIntProp , "55");
 
-            //因为是基于dynamic的+convert.changetype，  所以这样也能正常工作
-            _vm.TrySetMember(nameof(_vm.Instance.ClrIntProp), $"{result + 2}");
-
-            //这样不能正常工作
-            _vm.TrySetMember(nameof(_vm.Instance.ClrIntProp), $"{result + 2}.{result + 2}");
-
-            //所以名称可以放心重构，但类型还是要紧肾，代码里可以这样写
             if (_vm.HasError)
             {
                 Console.WriteLine(_vm.Error);
             }
+
 ```
