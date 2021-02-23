@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,26 +13,6 @@ namespace BindingProxyDemo
 {
     public class BindingProxy<T> : DynamicObject, INotifyPropertyChanged, IDataErrorInfo
     {
-
-        class MySetMemberBinder : SetMemberBinder
-        {
-
-            public static MySetMemberBinder Instance = new MySetMemberBinder(string.Empty);
-            private FieldInfo nameField;
-            private const string _name = "_name";
-            public MySetMemberBinder(string name) : base(name, false)
-            {
-                nameField = typeof(SetMemberBinder).GetField(_name, BindingFlags.Instance | BindingFlags.NonPublic);
-            }
-            public void SetName(string newName)
-            {
-                nameField?.SetValue(this, newName);
-            }
-            public override DynamicMetaObject FallbackSetMember(DynamicMetaObject target, DynamicMetaObject value, DynamicMetaObject errorSuggestion)
-            {
-                return errorSuggestion;
-            }
-        }
 
         class Mytuple
         {
@@ -122,41 +103,58 @@ namespace BindingProxyDemo
             result = null;
             return false;
         }
-        public bool TrySetMember(string instancePropertyName, object value)
+
+        public bool TrySetMember<TT>(Expression<Func<TT>> expression, TT value)
         {
-            MySetMemberBinder.Instance.SetName(instancePropertyName);
-            return (this.TrySetMember(MySetMemberBinder.Instance, value));
+            var name = string.Empty;
+            if (expression.Body is MemberExpression mp)
+            {
+                name = (expression.Body as MemberExpression).Member.Name;
+            }
+            else if (expression.Body is UnaryExpression ue && ue.Operand is MemberExpression mp2)
+            {
+                name = mp2.Member.Name;
+            }
+
+            return setMemberByName(value, name);
         }
 
         public override bool TrySetMember(SetMemberBinder binder, object value)
         {
-            if (!Properties[typeName].ContainsKey(binder.Name))
+            var name = binder.Name;
+            return setMemberByName(value, name);
+        }
+
+        private bool setMemberByName(object value, string name)
+        {
+            if (!Properties[typeName].ContainsKey(name))
                 return false;
-            if (Properties[typeName][binder.Name].PropInfo.GetValue(Instance).Equals(value))
+            if (Properties[typeName][name].PropInfo.GetValue(Instance).Equals(value))
             {
                 return true;
             }
             try
             {
 
-                Properties[typeName][binder.Name].PropInfo.SetValue(Instance, Convert.ChangeType(value, Properties[typeName][binder.Name].PropInfo.PropertyType), null);
-                Properties[typeName][binder.Name].SetErrorInfo = null;
+                Properties[typeName][name].PropInfo.SetValue(Instance, Convert.ChangeType(value, Properties[typeName][name].PropInfo.PropertyType), null);
+                Properties[typeName][name].SetErrorInfo = null;
             }
             catch (Exception ex)
             {
                 if (ex is InvalidCastException || ex is FormatException || ex is OverflowException || ex is ArgumentException)
                 {
                     const string str = "属性:[{0}] 值:[{2}] 格式校验异常:{1}";
-                    Properties[typeName][binder.Name].SetErrorInfo = string.Format(str, binder.Name, ex.Message,value.ToString());
+                    Properties[typeName][name].SetErrorInfo = string.Format(str, name, ex.Message, value.ToString());
                     UpdateErrorInfo();
                     return false;
                 }
                 throw;
             }
             UpdateErrorInfo();
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(binder.Name));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
             return true;
         }
+
         const string indexerName = "Item[]";
         public void UpdateErrorInfo()
         {
